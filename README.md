@@ -70,6 +70,9 @@ library(tidyr)
 
 ## Some Test Analysis 
 
+- **Sales by Rating**
+![alt text](image-2.png)
+
 - **Top Publishers**
 
 ![alt text](image.png)
