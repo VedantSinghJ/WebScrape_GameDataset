@@ -1,0 +1,176 @@
+---
+title: "Game Dataset Scraping"
+author: "VEDANT SINGH JADON 22BDS0101"
+date: "2025-02-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+  
+This R Markdown document scrapes data about best-selling PC games from Wikipedia and enriches it with additional details from the RAWG API. The final dataset is saved as a CSV file.
+
+## Required Libraries
+
+```{r}
+# install.packages("rvest")
+# install.packages("dplyr")
+# install.packages("httr")
+# install.packages("jsonlite")
+# install.packages("tidyr")
+# install.packages("stringr")
+
+library(rvest)
+library(dplyr, quietly = TRUE)
+library(httr)
+library(jsonlite)
+library(tidyr)
+library(stringr)
+```
+
+# Scraping Data from Wikipedia
+
+The script scrapes the list of best-selling PC games from Wikipedia and extracts relevant information.
+
+```{r}
+# Wikipedia URL for best-selling PC games
+wiki_url <- "https://en.wikipedia.org/wiki/List_of_best-selling_PC_games"
+
+# Wikipedia Page
+wiki_page <- read_html(wiki_url)
+
+# Extracting all tables with the "wikitable" class.
+tables <- wiki_page %>% html_nodes("table.wikitable")
+best_selling_table <- tables[[1]] %>% html_table(fill = TRUE)
+
+# Structure Verification
+head(best_selling_table)
+
+# Renaming the title column to "Game" and retain all columns
+games_wiki <- best_selling_table %>%
+  rename(Game = Game) %>%
+  select(Game, everything())
+
+# Inspecting 
+print(games_wiki)
+```
+
+# Fetching Additional Data from RAWG API
+
+The RAWG API is used to fetch additional details such as ratings, Metacritic scores, release dates, and available platforms.
+
+## API Key Setup
+
+```{r}
+# RAWG API key
+api_key <- "d3044c3ce36a482c9c275abcd8c82147"
+```
+
+## Function to Retrieve Game Details
+
+```{r}
+get_game_details_rawg <- function(game_name, api_key) {
+  base_url <- "https://api.rawg.io/api/games"
+  query_params <- list(search = game_name, key = api_key)
+  
+  res <- GET(base_url, query = query_params)
+  
+  # If the HTTP request fails, return NA values
+  if (http_error(res)) {
+    return(data.frame(
+      Game = game_name,
+      rating = NA,
+      metacritic = NA,
+      released = NA,
+      platforms = NA,
+      stringsAsFactors = FALSE
+    ))
+  }
+  
+  content_json <- content(res, as = "text", encoding = "UTF-8")
+  content_list <- fromJSON(content_json, flatten = TRUE)
+  
+  # If no results are found, return NA values
+  if (length(content_list$results) == 0) {
+    return(data.frame(
+      Game = game_name,
+      rating = NA,
+      metacritic = NA,
+      released = NA,
+      platforms = NA,
+      stringsAsFactors = FALSE
+    ))
+  }
+  
+  # Using the first result from the search results
+  game_data <- content_list$results[1, ]
+  
+  # Extracting platform details
+  if ("platforms" %in% names(game_data)) {
+    platforms_data <- game_data[["platforms"]]
+    if (!is.null(platforms_data) && is.list(platforms_data)) {
+      platforms_str <- paste(sapply(platforms_data, function(x) x$platform$name), collapse = ", ")
+    } else {
+      platforms_str <- NA
+    }
+  } else {
+    platforms_str <- NA
+  }
+  
+  data.frame(
+    Game = game_name,
+    rating = if (!is.null(game_data$rating)) game_data$rating else NA,
+    metacritic = if (!is.null(game_data$metacritic)) game_data$metacritic else NA,
+    released = if (!is.null(game_data$released)) game_data$released else NA,
+    platforms = platforms_str,
+    stringsAsFactors = FALSE
+  )
+}
+```
+
+## Testing the API Function
+
+```{r}
+# Testing the function with a known game
+test_rawg <- get_game_details_rawg("Minecraft", api_key)
+print(test_rawg)
+```
+
+# Collecting Data for All Games
+
+```{r}
+# Setting a delay to be polite to the API (in seconds)
+delay_seconds <- 1
+
+# Looping over each game title in the Wikipedia dataset
+rawg_list <- lapply(games_wiki$Game, function(game) {
+  Sys.sleep(delay_seconds)  # Delay to avoid hitting rate limits
+  get_game_details_rawg(game, api_key)
+})
+
+# Combine the list of data frames into one data frame
+rawg_data <- bind_rows(rawg_list)
+
+# Inspecting the RAWG data collected
+head(rawg_data)
+```
+
+# Merging Wikipedia and RAWG Data
+
+```{r}
+# Merging the two datasets on the "Game" column
+final_data <- left_join(games_wiki, rawg_data, by = "Game")
+
+# View the final merged dataset
+print(head(final_data))
+View(final_data)
+```
+
+# Exporting the Data
+
+```{r}
+write.csv(final_data, file = "Game_dataset.csv", row.names = FALSE)
+```

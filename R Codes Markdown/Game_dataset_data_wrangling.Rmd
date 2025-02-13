@@ -1,0 +1,244 @@
+---
+title: "GameDataset DATA WRANGLING"
+author: "VEDANT SINGH JADON 22BDS0101"
+date: "2025-02-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Introduction
+
+This R Markdown document processes and analyzes the Game dataset. It includes:
+- Data cleaning
+- Feature engineering
+- Exploratory data analysis (EDA)
+- Visualizations
+
+---
+
+## 2. Load Necessary Libraries
+
+```{r}
+# Load essential libraries
+library(dplyr)
+library(stringr)
+library(lubridate)
+library(ggplot2)
+library(knitr)
+```
+
+---
+
+# 3. Data Wrangling
+
+## 3.1 Load and Explore Data
+
+```{r}
+# Reading data with proper NA handling
+games <- read.csv("Game_dataset_testing.csv", na.strings = c("NA", "NULL"))
+
+# Initial examination
+dim(games) # Check dimensions
+str(games) # View structure
+summary(games) # Basic stats
+glimpse(games)
+
+# Checking missing values
+colSums(is.na(games))
+```
+
+---
+
+## 3.2 Data Cleaning
+
+```{r}
+# Converting date columns to proper format
+games <- games %>%
+  mutate(
+    Release.date = as.Date(Release.date, format = "%B %d, %Y"),
+    released = as.Date(released)
+  )
+
+# Cleaning 'Total copies sold'
+games <- games %>%
+  mutate(
+    copies_millions = as.numeric(str_extract(Total.copies.sold, "\\d+\\.?\\d*")),
+    Total.copies = copies_millions * 1000000
+  ) %>%
+  select(-Total.copies.sold, -copies_millions)
+
+# Handling date discrepancies
+games <- games %>%
+  mutate(
+    Release.date = coalesce(Release.date, released),
+    release_year = year(Release.date)
+  ) %>%
+  select(-released)
+
+# Remove redundant columns
+games <- games %>% select(-platforms)
+
+# Handle missing values
+games <- games %>%
+  mutate(
+    metacritic = ifelse(metacritic < 0 | metacritic > 100, NA, metacritic)
+  )
+
+# Remove duplicates
+games <- games[!duplicated(games$Game), ]
+
+# Handle missing values in Categorical column
+games <- games%>%
+  mutate(Series = ifelse(Series == "—" | is.na(Series), "Standalone", Series))
+```
+
+---
+
+## 3.3 Feature Engineering
+
+```{r}
+# Creating series indicator
+games <- games %>%
+  mutate(
+    is_series = ifelse(Series == "—", "No", "Yes")
+  )
+
+# Creating rating categories
+games <- games %>%
+  mutate(
+    rating_category = case_when(
+      rating >= 4.5 ~ "Excellent",
+      rating >= 4.0 ~ "Good",
+      rating >= 3.0 ~ "Average",
+      TRUE ~ "Below Average"
+    )
+  )
+```
+
+---
+
+# 4. Data Validation
+
+```{r}
+# Final quality checks
+glimpse(games)
+summary(games)
+
+# Check date ranges
+ggplot(games, aes(x = release_year)) +
+  geom_histogram(binwidth = 1) +
+  ggtitle("Release Year Distribution")
+
+# Validate numeric ranges
+ggplot(games, aes(x = metacritic)) +
+  geom_histogram(bins = 20) +
+  ggtitle("Metacritic Score Distribution")
+
+summary(games$Total.copies)
+```
+
+---
+
+# 5. Export Cleaned Data
+
+```{r}
+write.csv(games,"GameSet_Cleaned.csv",row.names = FALSE)
+```
+
+---
+
+# 6. Data Visualization
+
+## 6.1 Table Overview
+
+```{r}
+kable(
+  head(games, 10), 
+  align = c("l", "l", "l", "l", "l", "l", "c", "c", "r", "c", "c", "l"),
+  col.names = c(
+    "Game", "Series", "Release Date", "Genre(s)", "Developer(s)", 
+    "Publisher(s)", "Rating", "Metacritic", "Total Copies", 
+    "Release Year", "In Series?", "Rating Category"
+  )
+)
+
+summary_df<-summary(games)
+kable(summary_df,caption = "Summary of PC Games Dataset")
+
+
+```
+
+---
+
+## 6.2 Sales Analysis
+
+```{r}
+# Top 10 best-selling games
+top_sellers <- games %>%
+  arrange(desc(Total.copies)) %>%
+  head(10)
+
+ggplot(top_sellers, aes(x = reorder(Game, Total.copies), y = Total.copies/1e6)) +
+  geom_col(fill = "steelblue") +
+  labs(title = "Top 10 Best-Selling Games",
+       x = "Game", y = "Copies Sold (Millions)") +
+  coord_flip()
+```
+
+---
+
+## 6.3 Temporal Trends
+
+```{r}
+# Sales by release year
+yearly_sales <- games %>%
+  group_by(release_year) %>%
+  summarise(Total_Sales = sum(Total.copies, na.rm = TRUE))
+
+ggplot(yearly_sales, aes(x = release_year, y = Total_Sales/1e6)) +
+  geom_line(color = "darkgreen", linewidth = 1) +
+  geom_point(color = "darkgreen") +
+  labs(title = "Game Sales Trends Over Time",
+       x = "Release Year", y = "Total Copies Sold (Millions)")
+```
+
+---
+
+## 6.4 Rating Analysis
+
+```{r}
+# Rating vs Sales
+ggplot(games, aes(x = rating, y = Total.copies/1e6)) +
+  geom_smooth(method = "loess", color = "darkgreen", fill = "lightgreen") +
+  labs(title = "Trend of Ratings vs Sales",
+       x = "User Rating", y = "Copies Sold (Millions)") +
+  theme_light()
+```
+
+```{r}
+# Rating distribution by series status
+ggplot(games, aes(x = is_series, y = rating, fill = is_series)) +
+  geom_boxplot() +
+  labs(title = "Rating Distribution: Series vs Standalone Games",
+       x = "Part of Series", y = "Rating")
+```
+
+---
+
+## 6.5 Genre Analysis
+
+```{r}
+# Most common genres (top 10)
+genre_counts <- games %>%
+  count(Genre.s.) %>%
+  arrange(desc(n)) %>%
+  head(10)
+
+ggplot(genre_counts, aes(x = reorder(Genre.s., n), y = n)) +
+  geom_col(fill = "orange") +
+  labs(title = "Most Common Game Genres",
+       x = "Genre", y = "Count") +
+  coord_flip()
