@@ -190,7 +190,25 @@ ggplot(top_sellers, aes(x = reorder(Game, Total.copies), y = Total.copies/1e6)) 
 
 ---
 
-## 6.3 Temporal Trends
+## 6.3 Publishers Analysis
+
+```{r}
+# Top publishers by total sales
+publisher_sales <- games %>%
+  group_by(Publisher.s.) %>%
+  summarise(Total_Sales = sum(Total.copies, na.rm = TRUE)) %>%
+  arrange(desc(Total_Sales)) %>%
+  head(10)
+
+ggplot(publisher_sales, aes(x = reorder(Publisher.s., Total_Sales), y = Total_Sales/1e6)) +
+  geom_col(fill = "darkred") +
+  labs(title = "Top Publishers by Total Sales",
+       x = "Publisher", y = "Total Copies Sold (Millions)") +
+  coord_flip()
+
+```
+
+## 6.4 Temporal Trends
 
 ```{r}
 # Sales by release year
@@ -207,7 +225,7 @@ ggplot(yearly_sales, aes(x = release_year, y = Total_Sales/1e6)) +
 
 ---
 
-## 6.4 Rating Analysis
+## 6.5 Rating Analysis
 
 ```{r}
 # Rating vs Sales
@@ -228,7 +246,7 @@ ggplot(games, aes(x = is_series, y = rating, fill = is_series)) +
 
 ---
 
-## 6.5 Genre Analysis
+## 6.6 Genre Analysis
 
 ```{r}
 # Most common genres (top 10)
