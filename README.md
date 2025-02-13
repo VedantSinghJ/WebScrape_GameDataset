@@ -68,6 +68,16 @@ library(tidyr)
 -   **Consistency**: 98% of date values validated.
 -   **Accuracy**: Correlation of **0.78** between ratings and Metacritic scores.
 
+## Some Test Analysis 
+
+- **Top Publishers**
+
+![alt text](image.png)
+
+- **Most Common Genres**
+
+![alt text](image-1.png)
+
 ## Data Wrangling Steps
 
 ### 1. Initial Cleaning
