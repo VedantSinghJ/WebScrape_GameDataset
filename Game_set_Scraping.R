@@ -41,7 +41,7 @@ print(games_wiki)
 
 
 # Replace with your actual RAWG API key
-api_key <- "d3044c3ce36a482c9c275abcd8c82147"
+api_key <- "RAWG API KEY HERE"
 
 get_game_details_rawg <- function(game_name, api_key) {
   base_url <- "https://api.rawg.io/api/games"
